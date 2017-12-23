@@ -6,13 +6,13 @@
 
 #define isTimeSet() (timeinfo.tm_year >= (2016 - 1900))
 
-void obtainTime();
-void initializeSntp();
+void systime_obtainTime();
+void systime_initializeSntp();
 
 static const char *LOG_TAG = "SystemTime";
-static char *NTP_HOST = "pool.ntp.org";
+static const char *NTP_HOST = "pool.ntp.org";
 
-void setupTime() {
+void systime_setup() {
   ESP_LOGI(LOG_TAG, "Setup time");
   time_t now;
   struct tm timeinfo {};
@@ -21,7 +21,7 @@ void setupTime() {
   // Is time set? If not, tm_year will be (1970 - 1900).
   if (!isTimeSet()) {
     ESP_LOGI(LOG_TAG, "Time not yet set. Retrying optaining via NTP.");
-    obtainTime();
+    systime_obtainTime();
     // update 'now' variable with current time
     time(&now);
   }
@@ -34,11 +34,11 @@ void setupTime() {
   // xEventGroupSetBits(m_sntpEventGroup, DATE_SET_BIT);
 }
 
-void obtainTime() {
+void systime_obtainTime() {
   ESP_LOGI(LOG_TAG, "Optaining current time via NTP");
   // ESP_ERROR_CHECK(nvs_flash_init());
 
-  initializeSntp();
+  systime_initializeSntp();
 
   time_t now = 0;
   struct tm timeinfo {};
@@ -53,20 +53,20 @@ void obtainTime() {
     localtime_r(&now, &timeinfo);
   }
 
-  createCurrentTimeOutput(now, displayTime, sizeof(displayTime) - 1, "%c");
+  systime_createCurrentTimeOutput(now, displayTime, sizeof(displayTime) - 1, "%c");
   ESP_LOGI(LOG_TAG, "Set time to %s", displayTime);
 
   sntp_stop();
 }
 
-void initializeSntp() {
+void systime_initializeSntp() {
   ESP_LOGI(LOG_TAG, "Initializing SNTP");
   sntp_setoperatingmode(SNTP_OPMODE_POLL);
-  sntp_setservername(0, NTP_HOST);
+  sntp_setservername(0, (char *)NTP_HOST);
   sntp_init();
 }
 
-void createCurrentTimeOutput(time_t timestamp, char *strftime_buf,
+void systime_createCurrentTimeOutput(time_t timestamp, char *strftime_buf,
                              size_t buf_len, const char *pattern) {
   struct tm timeinfo {};
   localtime_r(&timestamp, &timeinfo);

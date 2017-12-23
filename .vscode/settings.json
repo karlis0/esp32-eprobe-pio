@@ -3,6 +3,9 @@
         "PATH": "/Users/alxs/.platformio/penv/bin:/Users/alxs/.sdkman/candidates/kscript/current/bin:/Users/alxs/.sdkman/candidates/java/current/bin:/Users/alxs/.sdkman/candidates/asciidoctorj/current/bin:/Users/alxs/.rbenv/shims:/usr/local/bin/npm:/usr/local/bin:/Library/Frameworks/Python.framework/Versions/3.5/bin:/Users/alxs/.sdkman/candidates/springboot/current/bin:/Users/alxs/.sdkman/candidates/maven/current/bin:/Users/alxs/.sdkman/candidates/kotlin/current/bin:/Users/alxs/.sdkman/candidates/groovy/current/bin:/Users/alxs/.sdkman/candidates/grails/current/bin:/Users/alxs/.sdkman/candidates/gradle/current/bin:/Users/alxs/.sdkman/candidates/ant/current/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/MacGPG2/bin:/Users/alxs/.rvm/bin:/usr/local/bin/:/Users/alxs/bin:/Users/alxs/Applications/apache-maven/bin:/Users/alxs/Applications/apache-ant/bin:/Applications/VMware Fusion.app/Contents/Library:/Users/alxs/Development/bin:/usr/local/gcc-arm-none-eabi/bin:/Users/alxs/Development/workspaces/espressif/esp/xtensa-esp32-elf/bin:/Users/alxs/.npm-packages/bin:/opt/puppetlabs/bin:/Users/alxs/.platformio/penv/bin"
     },
     "files.associations": {
-        "cstdio": "cpp"
+        "cstdio": "cpp",
+        "functional": "cpp",
+        "array": "cpp",
+        "initializer_list": "cpp"
     }
 }

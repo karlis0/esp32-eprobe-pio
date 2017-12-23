@@ -12,28 +12,36 @@
 #include "FS.h"
 #include "SD.h"
 
+#include "file.h"
 #include "gxepd_display.h"
 #include "system_time.h"
-#include "file.h"
 
 #define PIN_LED GPIO_NUM_5
 #define STR_DATE_TIME_LEN 64
 
-void setupBme680();
-void setupDataLogging();
-void setupAdafruitIo();
-void setupDisplay();
-void setupSD();
-void displaySensorData(bme680_sensor_data_t sensorData);
-void displayInitialScreen();
-void updateDisplayBufferForData(const char *temp_buf, const char *humidity_buf,
-                                const char *pressure_buf,
-                                const char *airquality_buf,
-                                long refreshCounter);
+#define isAdafruitIoConnected() (io.status() >= AIO_CONNECTED)
 
-void sendSensorData(bme680_sensor_data_t sensorData);
-void signalMeasureCycleSuccess();
-bme680_sensor_data_t readBme680Data();
+void bme680_setup();
+void datalog_setup();
+void aio_setup();
+void display_setup();
+void wifi_setup();
+void sd_setup();
+void wifi_EventCallback(WiFiEvent_t event);
+void wifi_connect();
+
+void aio_connectIfDisconnected();
+void display_showSensorData(bme680_sensor_data_t sensorData);
+void display_showInitialScreen();
+void display_updateBufferForData(const char *temp_buf, const char *humidity_buf,
+                                 const char *pressure_buf,
+                                 const char *airquality_buf,
+                                 long refreshCounter);
+
+void aio_sendSensorData(bme680_sensor_data_t sensorData);
+void aio_checkIoEventsIfConnected();
+void gpio_signalMeasureCycleSuccess();
+bme680_sensor_data_t bme680_readSensorData();
 
 static Adafruit_BME680 bme;
 
@@ -53,30 +61,49 @@ static uint16_t cycleCounter;
 void setupSyncMeasure() {
   cycleCounter = 0;
 
-  setupSD();
+  sd_setup();
 
-  setupAdafruitIo();
-  setupTime();
-  setupBme680();
-  setupDataLogging();
-  setupDisplay();
+  wifi_setup();
+  // aio_setup();
+  bme680_setup();
+  datalog_setup();
+  display_setup();
 
-  displayInitialScreen();
+  display_showInitialScreen();
 }
 
-void setupAdafruitIo() {
+void wifi_EventCallback(WiFiEvent_t event) {
+  ESP_LOGD(LOG_TAG, "[WiFi-event] event: %d", event);
+
+  switch (event) {
+    case SYSTEM_EVENT_STA_GOT_IP:
+      ESP_LOGD(LOG_TAG, "WiFi connected\nIP address: %s",
+               WiFi.localIP().toString().c_str());
+      systime_setup();
+      break;
+    case SYSTEM_EVENT_STA_DISCONNECTED:
+      ESP_LOGD(LOG_TAG, "WiFi lost connection");
+      break;
+  }
+}
+
+void wifi_setup() {
+  ESP_LOGI(LOG_TAG, "Setup WiFi");
+
+  WiFi.onEvent(wifi_EventCallback);
+
+  wifi_connect();
+}
+
+void aio_setup() {
   ESP_LOGI(LOG_TAG, "Setup Adafruit IO");
 
-  io.connect();
+  // io.connect();
 
-  while (io.status() < AIO_CONNECTED) {
-    ESP_LOGI(LOG_TAG, "Waiting for Adafruit IO connection");
-    delay(500);
-  }
   ESP_LOGI(LOG_TAG, "Adafruit IO connection status: %s", io.statusText());
 }
 
-void setupBme680() {
+void bme680_setup() {
   ESP_LOGD(LOG_TAG, "Setup BME680 sensor");
   if (!bme.begin()) {
     ESP_LOGE(LOG_TAG, "Could not find a valid BME680 sensor, check wiring!");
@@ -92,27 +119,28 @@ void setupBme680() {
   bme.setGasHeater(320, 150);  // 320*C for 150 ms
 }
 
-void setupDataLogging() {
+void datalog_setup() {
   ESP_LOGD(LOG_TAG, "Setup data logging");
 
   ::gpio_set_direction(PIN_LED, GPIO_MODE_OUTPUT);
 }
 
-void setupDisplay() { display.init(); }
+void display_setup() { display.init(); }
 
 void measureLoop() {
   cycleCounter++;
   ESP_LOGD(LOG_TAG, "Entering messuring loop (Cycle: %d)", cycleCounter);
 
-  io.run();
+  aio_connectIfDisconnected();
+  aio_checkIoEventsIfConnected();
 
-  bme680_sensor_data_t sensorData = readBme680Data();
-  displaySensorData(sensorData);
-  sendSensorData(sensorData);
-  signalMeasureCycleSuccess();
+  bme680_sensor_data_t sensorData = bme680_readSensorData();
+  display_showSensorData(sensorData);
+  aio_sendSensorData(sensorData);
+  gpio_signalMeasureCycleSuccess();
 }
 
-bme680_sensor_data_t readBme680Data() {
+bme680_sensor_data_t bme680_readSensorData() {
   ESP_LOGD(LOG_TAG, "Read BME680 sensor data");
   bme680_sensor_data_t sensorData{};
 
@@ -128,7 +156,7 @@ bme680_sensor_data_t readBme680Data() {
   return sensorData;
 }
 
-void displaySensorData(bme680_sensor_data_t sensorData) {
+void display_showSensorData(bme680_sensor_data_t sensorData) {
   ESP_LOGD(LOG_TAG, "Displaying Sensor Data");
   char temp_buf[10];
   char humidity_buf[10];
@@ -139,12 +167,12 @@ void displaySensorData(bme680_sensor_data_t sensorData) {
 
   time(&now);
 
-  createCurrentTimeOutput(now, strftime_buf, (STR_DATE_TIME_LEN - 1), "%c");
+  systime_createCurrentTimeOutput(now, strftime_buf, (STR_DATE_TIME_LEN - 1),
+                                  "%c");
 
   Serial.println(
       "------------------------------------------------------------");
-  Serial.print("Measured at ");
-  Serial.println(strftime_buf);
+  Serial.printf("Measure cycle %d at %s\n", cycleCounter, strftime_buf);
   Serial.println(
       "------------------------------------------------------------");
 
@@ -163,37 +191,34 @@ void displaySensorData(bme680_sensor_data_t sensorData) {
       "------------------------------------------------------------");
 
   if (cycleCounter % 40 == 0) {
-    displayInitialScreen();
+    display_showInitialScreen();
   }
 
-  createCurrentTimeOutput(now, strftime_buf, (STR_DATE_TIME_LEN - 1), "%c");
+  systime_createCurrentTimeOutput(now, strftime_buf, (STR_DATE_TIME_LEN - 1),
+                                  "%c");
   char dataLogLine[129];
-  snprintf(dataLogLine,
-   128,
-    "'%s',%.2f,%.2f,%.2f,%.4f\n",
-    strftime_buf,
-     (double)sensorData.temperature,
-     (double)sensorData.humidity,
-     (double)sensorData.pressure / 100,0,
-     (double)sensorData.airquality / 1000.0
-     );
+  snprintf(dataLogLine, 128, "'%s',%.2f,%.2f,%.2f,%.4f\n", strftime_buf,
+           (double)sensorData.temperature, (double)sensorData.humidity,
+           (double)sensorData.pressure / 100, 0,
+           (double)sensorData.airquality / 1000.0);
 
   appendFile(SD, "/datalog.csv", dataLogLine);
 
-  updateDisplayBufferForData(temp_buf, humidity_buf, pressure_buf,
-                             airquality_buf, cycleCounter);
+  display_updateBufferForData(temp_buf, humidity_buf, pressure_buf,
+                              airquality_buf, cycleCounter);
 }
 
-void updateDisplayBufferForData(const char *temp_buf, const char *humidity_buf,
-                                const char *pressure_buf,
-                                const char *airquality_buf,
-                                long refreshCounter) {
+void display_updateBufferForData(const char *temp_buf, const char *humidity_buf,
+                                 const char *pressure_buf,
+                                 const char *airquality_buf,
+                                 long refreshCounter) {
   char strftime_buf[STR_DATE_TIME_LEN];
   time_t now;
 
   time(&now);
 
-  createCurrentTimeOutput(now, strftime_buf, (STR_DATE_TIME_LEN - 1), "%T");
+  systime_createCurrentTimeOutput(now, strftime_buf, (STR_DATE_TIME_LEN - 1),
+                                  "%T");
 
   display.setTextColor(GxEPD_BLACK);
   display.fillScreen(GxEPD_WHITE);
@@ -221,7 +246,7 @@ void updateDisplayBufferForData(const char *temp_buf, const char *humidity_buf,
                        display.width(), 34);
 }
 
-void displayInitialScreen() {
+void display_showInitialScreen() {
   ESP_LOGD(LOG_TAG, "Display initial screen");
 
   display.setTextColor(GxEPD_BLACK);
@@ -243,10 +268,36 @@ void displayInitialScreen() {
   display.updateWindow(0, 0, GxEPD_WIDTH, GxEPD_HEIGHT, false);
 }
 
-void sendSensorData(bme680_sensor_data_t sensorData) {
+void aio_connectIfDisconnected() {
+  ESP_LOGI(LOG_TAG, "Checking WiFi and AIO connection");
+
+  int wifiStatus = WiFi.status();
+  if (wifiStatus == WL_CONNECT_FAILED || wifiStatus == WL_CONNECTION_LOST ||
+      wifiStatus == WL_DISCONNECTED) {
+    wifi_connect();
+  }
+}
+
+void wifi_connect() {
+  int status = 0;
+  int waitStates = 0;
+
+  io.connect();
+  // WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+  while (status != WL_CONNECTED && waitStates < 10) {
+    waitStates++;
+    ESP_LOGI(LOG_TAG, "Attempting to connect to network (%d/10)", waitStates);
+    status = WiFi.status();
+
+    delay(1000);
+  }
+}
+
+void aio_sendSensorData(bme680_sensor_data_t sensorData) {
   ESP_LOGD(LOG_TAG, "Send sensor to Adafruit IO");
-  aio_status_t ioStatus = io.status();
-  if (ioStatus >= AIO_CONNECTED) {
+
+  if (isAdafruitIoConnected()) {
     bool temperatureSuccess = temperatureFeed->save(sensorData.temperature);
     bool humiditySuccess = humidityFeed->save(sensorData.humidity);
     bool pressureSuccess = pressureFeed->save(sensorData.pressure);
@@ -258,11 +309,21 @@ void sendSensorData(bme680_sensor_data_t sensorData) {
              temperatureSuccess, humiditySuccess, pressureSuccess,
              airqualitySuccess);
   } else {
-    ESP_LOGD(LOG_TAG, "Adafruit IO disconnected (%d)", ioStatus);
+    ESP_LOGD(LOG_TAG, "Adafruit IO disconnected (%d). Skip sending data",
+             io.status());
   }
 }
 
-void signalMeasureCycleSuccess() {
+void aio_checkIoEventsIfConnected() {
+  if (isAdafruitIoConnected()) {
+    ESP_LOGD(LOG_TAG, "Checking incoming AdafruitIO events");
+    io.run();
+  } else {
+    ESP_LOGD(LOG_TAG, "Skip checking incoming AdafruitIO events");
+  }
+}
+
+void gpio_signalMeasureCycleSuccess() {
   ::gpio_set_level(PIN_LED, false);
   delay(100);
   ::gpio_set_level(PIN_LED, true);
@@ -425,7 +486,7 @@ void deleteFile(fs::FS &fs, const char *path) {
   file.close();
 }
  */
-void setupSD() {
+void sd_setup() {
   if (!SD.begin()) {
     ESP_LOGW(LOG_TAG, "Card Mount Failed");
     return;
@@ -437,7 +498,7 @@ void setupSD() {
     return;
   }
 
-char *cardTypeName;
+  const char *cardTypeName;
   if (cardType == CARD_MMC) {
     cardTypeName = "MMC";
   } else if (cardType == CARD_SD) {
@@ -450,21 +511,5 @@ char *cardTypeName;
   ESP_LOGI(LOG_TAG, "SD Card Type: %s", cardTypeName);
 
   uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-  Serial.printf("SD Card Size: %lluMB\n", cardSize);
-
-  /*   listDir(SD, "/", 0);
-    createDir(SD, "/mydir");
-    listDir(SD, "/", 0);
-    removeDir(SD, "/mydir");
-    listDir(SD, "/", 2);
-    writeFile(SD, "/hello.txt", "Hello ");
-    appendFile(SD, "/hello.txt", "World!\n");
-    readFile(SD, "/hello.txt");
-    deleteFile(SD, "/foo.txt");
-    renameFile(SD, "/hello.txt", "/foo.txt");
-    readFile(SD, "/foo.txt");
-    testFileIO(SD, "/test.txt");
-    Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
-    Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
-   */
+  ESP_LOGD(LOG_TAG, "SD Card Size: %lluMB", cardSize);
 }

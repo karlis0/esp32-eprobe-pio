@@ -16,6 +16,8 @@
 #include "gxepd_display.h"
 #include "system_time.h"
 
+#include "welcome_screen.h"
+
 // Pin definitions
 #define BME680_PIN_CS 33
 
@@ -202,10 +204,10 @@ void display_showSensorData(bme680_sensor_data_t sensorData) {
   Serial.println(
       "------------------------------------------------------------");
 
-  snprintf(temp_buf, 10, "%.2f*C", (double)sensorData.temperature);
-  snprintf(humidity_buf, 10, "%.2f%%", (double)sensorData.humidity);
-  snprintf(pressure_buf, 12, "%.2fmb", (double)(sensorData.pressure / 100.0));
-  snprintf(airquality_buf, 12, "%.2fkR",
+  snprintf(temp_buf, 10, "%.2f", (double)sensorData.temperature);
+  snprintf(humidity_buf, 10, "%.2f", (double)sensorData.humidity);
+  snprintf(pressure_buf, 12, "%.2f", (double)(sensorData.pressure / 100.0));
+  snprintf(airquality_buf, 12, "%.2fk",
            (double)(sensorData.airquality / 1000.0));
 
   Serial.println(temp_buf);
@@ -249,49 +251,40 @@ void display_updateBufferForData(const char *temp_buf, const char *humidity_buf,
   display.setTextColor(GxEPD_BLACK);
   display.fillScreen(GxEPD_WHITE);
   display.setFont(fsmall);
-  display.setCursor(value_column, line_height);
+
+  display.setCursor(34, 22);
   display.print(temp_buf);
-  display.setCursor(value_column, 2 * line_height);
+  display.updateWindow(34, 0, 100, 36);
+
+  display.setCursor(34, 72);
   display.print(humidity_buf);
-  display.setCursor(value_column, 3 * line_height);
+  display.updateWindow(34, 50, 100, 36);
+
+  display.setCursor(34, 122);
   display.print(pressure_buf);
-  display.setCursor(value_column, 4 * line_height);
+  display.updateWindow(34, 100, 100, 36);
+
+  display.setCursor(34, 172);
   display.print(airquality_buf);
-  display.updateWindow(value_column, 0, display.width() - value_column,
-                       (4 * line_height) + (line_height / 2));
+  display.updateWindow(34, 150, 100, 36);
 
   display.setTextColor(GxEPD_WHITE);
   display.fillScreen(GxEPD_BLACK);
   display.setFont(fsmall7pt);
-  display.setCursor(0, 5 * line_height);
+  display.setCursor(2, 220);
   display.print(strftime_buf);
   display.print(" (");
   display.print(refreshCounter);
   display.print(")");
-  display.updateWindow(0, (5 * line_height) - (line_height / 2),
-                       display.width(), 34);
+  display.updateWindow(0, 200, display.width(), 34);
 }
 
 void display_showMainScreen() {
   ESP_LOGD(LOG_TAG, "Show main screen");
 
-  display.setTextColor(GxEPD_BLACK);
-  display.fillScreen(GxEPD_WHITE);
-  display.setCursor(0, line_height);
-  display.setFont(fthermometer);
-  display.print(" ");
-  display.setCursor(0, 2 * line_height);
-  display.setFont(fpercent);
-  display.print(" ");
-  display.setCursor(0, 3 * line_height);
-  display.setFont(ftachometer);
-  display.print(" ");
-  display.update();
-  //    vTaskDelay(2000 / portTICK_PERIOD_MS);
-
-  // partial update to full screen to preset for partial update of box window
-  // (this avoids strange background effects)
-  display.updateWindow(0, 0, GxEPD_WIDTH, GxEPD_HEIGHT, false);
+  display.drawBitmap(welcomeScreenBitmap, sizeof(welcomeScreenBitmap));
+  // fill second buffer with same background image to prevent flickering
+  display.drawBitmap(welcomeScreenBitmap, sizeof(welcomeScreenBitmap));
 }
 
 void display_showStartupScreen() {

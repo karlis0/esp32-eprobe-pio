@@ -16,11 +16,20 @@
 #include "gxepd_display.h"
 #include "system_time.h"
 
-#define PIN_LED GPIO_NUM_5
-#define STR_DATE_TIME_LEN 64
+// Pin definitions
+#define BME680_PIN_CS 33
 
+#define DISPLAY_PIN_CS 32
+#define DISPLAY_PIN_DC 17
+#define DISPLAY_PIN_RST 16
+#define DISPLAY_PIN_BSY 4
+
+#define PIN_LED GPIO_NUM_5
+
+// Macros
 #define isAdafruitIoConnected() (io.status() >= AIO_CONNECTED)
 
+// Function Prototypes
 void bme680_setup();
 void datalog_setup();
 void aio_setup();
@@ -32,7 +41,9 @@ void wifi_connect();
 
 void aio_connectIfDisconnected();
 void display_showSensorData(bme680_sensor_data_t sensorData);
-void display_showInitialScreen();
+void display_showMainScreen();
+void display_showStartupStatus(const char *message);
+void display_showStartupScreen();
 void display_updateBufferForData(const char *temp_buf, const char *humidity_buf,
                                  const char *pressure_buf,
                                  const char *airquality_buf,
@@ -43,33 +54,48 @@ void aio_checkIoEventsIfConnected();
 void gpio_signalMeasureCycleSuccess();
 bme680_sensor_data_t bme680_readSensorData();
 
-static Adafruit_BME680 bme;
+// BME680
+static Adafruit_BME680 bme(BME680_PIN_CS);
 
-static const char *LOG_TAG = "SyncMeasure";
+// Display
+static GxIO_Class displayIo(SPI, DISPLAY_PIN_CS, DISPLAY_PIN_DC,
+                            DISPLAY_PIN_RST);  // (interface, CS, DC, RST, BL)
+static GxEPD_Class display(displayIo, DISPLAY_PIN_RST,
+                           DISPLAY_PIN_BSY);  // (RST, BSY)
 
-static GxIO_Class displayIo(SPI, 32, 17, 16);  // (interface, CS, DC, RST, BL)
-static GxEPD_Class display(displayIo, 16, 4);  // (RST, BSY)
-
+// Adafruit IO
 AdafruitIO_WiFi io(IO_USERNAME, IO_KEY, WIFI_SSID, WIFI_PASS);
 AdafruitIO_Feed *temperatureFeed = io.feed("temperature");
 AdafruitIO_Feed *humidityFeed = io.feed("humidity");
 AdafruitIO_Feed *pressureFeed = io.feed("pressure");
 AdafruitIO_Feed *airqualityFeed = io.feed("airquality");
 
+// Global constants
+#define STR_DATE_TIME_LEN 64
+static const char *LOG_TAG = "SyncMeasure";
+
 static uint16_t cycleCounter;
 
 void setupSyncMeasure() {
   cycleCounter = 0;
 
+  display_setup();
+  display_showStartupScreen();
+
+  display_showStartupStatus("SD");
   sd_setup();
 
+  display_showStartupStatus("WiFi");
   wifi_setup();
   // aio_setup();
-  bme680_setup();
-  datalog_setup();
-  display_setup();
 
-  display_showInitialScreen();
+  display_showStartupStatus("BME680");
+  bme680_setup();
+
+  display_showStartupStatus("Datalog");
+  datalog_setup();
+
+  display_showMainScreen();
 }
 
 void wifi_EventCallback(WiFiEvent_t event) {
@@ -191,7 +217,7 @@ void display_showSensorData(bme680_sensor_data_t sensorData) {
       "------------------------------------------------------------");
 
   if (cycleCounter % 40 == 0) {
-    display_showInitialScreen();
+    display_showMainScreen();
   }
 
   systime_createCurrentTimeOutput(now, strftime_buf, (STR_DATE_TIME_LEN - 1),
@@ -246,8 +272,8 @@ void display_updateBufferForData(const char *temp_buf, const char *humidity_buf,
                        display.width(), 34);
 }
 
-void display_showInitialScreen() {
-  ESP_LOGD(LOG_TAG, "Display initial screen");
+void display_showMainScreen() {
+  ESP_LOGD(LOG_TAG, "Show main screen");
 
   display.setTextColor(GxEPD_BLACK);
   display.fillScreen(GxEPD_WHITE);
@@ -266,6 +292,31 @@ void display_showInitialScreen() {
   // partial update to full screen to preset for partial update of box window
   // (this avoids strange background effects)
   display.updateWindow(0, 0, GxEPD_WIDTH, GxEPD_HEIGHT, false);
+}
+
+void display_showStartupScreen() {
+  ESP_LOGD(LOG_TAG, "Show startup screen");
+
+  display.setTextColor(GxEPD_BLACK);
+  display.fillScreen(GxEPD_WHITE);
+  display.setFont(fsmall);
+  display.setCursor(3, line_height);
+  display.print("eProbe");
+  display.setCursor(3, 2 * line_height);
+  display.print(".starting.");
+
+  display.update();
+  display.updateWindow(0, 0, GxEPD_WIDTH, GxEPD_HEIGHT, false);
+}
+
+void display_showStartupStatus(const char *message) {
+  display.setTextColor(GxEPD_WHITE);
+  display.fillScreen(GxEPD_BLACK);
+  display.setFont(fsmall);
+  display.setCursor(3, 3 * line_height);
+  display.print(message);
+  display.updateWindow(0, (3 * line_height) - (line_height / 2),
+                       display.width(), 34); 
 }
 
 void aio_connectIfDisconnected() {

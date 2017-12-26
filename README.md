@@ -8,3 +8,5 @@ The hardware consists of the following components:
 * Bosch BME680 environment sensor for temperature, barometric pressure, air quality and humidity
 
 The project can be build using [PlatformIO](http://platformio.org).
+
+![Screenhot](doc/screenshot.jpg)

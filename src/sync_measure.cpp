@@ -16,7 +16,12 @@
 #include "gxepd_display.h"
 #include "system_time.h"
 
-#include "welcome_screen.h"
+#ifdef GxGDEP015OC1_ACTIVE
+#include "welcome_screen_200x200.h"
+#endif
+#ifdef GxGDE0213B1_ACTIVE
+#include "welcome_screen_128x250.h"
+#endif
 
 // Pin definitions
 #define BME680_PIN_CS 33
@@ -245,8 +250,14 @@ void display_updateBufferForData(const char *temp_buf, const char *humidity_buf,
 
   time(&now);
 
+#ifdef GxGDEP015OC1_ACTIVE
+  systime_createCurrentTimeOutput(now, strftime_buf, (STR_DATE_TIME_LEN - 1),
+                                  "%d.%m.%y %T");
+#endif
+#ifdef GxGDE0213B1_ACTIVE
   systime_createCurrentTimeOutput(now, strftime_buf, (STR_DATE_TIME_LEN - 1),
                                   "%T");
+#endif
 
   display.setTextColor(GxEPD_BLACK);
   display.fillScreen(GxEPD_WHITE);
@@ -254,20 +265,33 @@ void display_updateBufferForData(const char *temp_buf, const char *humidity_buf,
 
   display.setCursor(34, 22);
   display.print(temp_buf);
-  display.updateWindow(34, 0, 100, 36);
+  display.updateWindow(34, 0, 100, 24);
 
   display.setCursor(34, 72);
   display.print(humidity_buf);
-  display.updateWindow(34, 50, 100, 36);
+  display.updateWindow(34, 50, 100, 24);
 
   display.setCursor(34, 122);
   display.print(pressure_buf);
-  display.updateWindow(34, 100, 100, 36);
+  display.updateWindow(34, 100, 100, 24);
 
   display.setCursor(34, 172);
   display.print(airquality_buf);
-  display.updateWindow(34, 150, 100, 36);
+  display.updateWindow(34, 150, 100, 24);
 
+#ifdef GxGDEP015OC1_ACTIVE
+  display.setFont(fsmall7pt);
+  display.setCursor(136, 11);
+  display.printf("[%06d]", refreshCounter);
+  display.updateWindow(136, 0, display.width(), 22);
+  display.setTextColor(GxEPD_WHITE);
+  display.fillScreen(GxEPD_BLACK);
+  display.setCursor(2, (200-7));
+  display.print(strftime_buf);
+  display.updateWindow(0, 200-20, display.width(), 20);
+#endif
+
+#ifdef GxGDE0213B1_ACTIVE
   display.setTextColor(GxEPD_WHITE);
   display.fillScreen(GxEPD_BLACK);
   display.setFont(fsmall7pt);
@@ -277,6 +301,7 @@ void display_updateBufferForData(const char *temp_buf, const char *humidity_buf,
   display.print(refreshCounter);
   display.print(")");
   display.updateWindow(0, 200, display.width(), 34);
+#endif
 }
 
 void display_showMainScreen() {

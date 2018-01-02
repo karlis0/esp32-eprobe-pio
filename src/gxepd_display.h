@@ -6,7 +6,16 @@
 
 #include <GxEPD.h>
 
+#define GxGDEP015OC1_ACTIVE 1
+
+#ifdef GxGDEP015OC1_ACTIVE
+#include <GxGDEP015OC1/GxGDEP015OC1.cpp>
+#endif
+#ifdef GxGDE0213B1_ACTIVE
 #include <GxGDE0213B1/GxGDE0213B1.cpp>
+#endif
+
+//#define GxGDE0213B1_ACTIVE
 
 #include <Fonts/FreeMono9pt7b.h>
 #include "FAPercent14pt.h"
@@ -14,8 +23,8 @@
 #include "FAThermomenter-full14pt.h"
 #include "FontSourceCodeProRegular7pt.h"
 
-#include <GxIO/GxIO_SPI/GxIO_SPI.cpp>
 #include <GxIO/GxIO.cpp>
+#include <GxIO/GxIO_SPI/GxIO_SPI.cpp>
 
 static const uint8_t line_height = 42;
 static const uint8_t value_column = 38;

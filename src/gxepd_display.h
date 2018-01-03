@@ -6,7 +6,8 @@
 
 #include <GxEPD.h>
 
-#define GxGDEP015OC1_ACTIVE 1
+#define GxGDE0213B1_ACTIVE 1
+//#define GxGDEP015OC1_ACTIVE 1
 
 #ifdef GxGDEP015OC1_ACTIVE
 #include <GxGDEP015OC1/GxGDEP015OC1.cpp>
@@ -14,8 +15,6 @@
 #ifdef GxGDE0213B1_ACTIVE
 #include <GxGDE0213B1/GxGDE0213B1.cpp>
 #endif
-
-//#define GxGDE0213B1_ACTIVE
 
 #include <Fonts/FreeMono9pt7b.h>
 #include "FAPercent14pt.h"

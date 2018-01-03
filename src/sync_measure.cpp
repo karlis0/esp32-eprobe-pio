@@ -256,7 +256,7 @@ void display_updateBufferForData(const char *temp_buf, const char *humidity_buf,
 #endif
 #ifdef GxGDE0213B1_ACTIVE
   systime_createCurrentTimeOutput(now, strftime_buf, (STR_DATE_TIME_LEN - 1),
-                                  "%T");
+                                  "%d.%m. %T");
 #endif
 
   display.setTextColor(GxEPD_BLACK);
@@ -284,6 +284,7 @@ void display_updateBufferForData(const char *temp_buf, const char *humidity_buf,
   display.setCursor(136, 11);
   display.printf("[%06d]", refreshCounter);
   display.updateWindow(136, 0, display.width(), 22);
+
   display.setTextColor(GxEPD_WHITE);
   display.fillScreen(GxEPD_BLACK);
   display.setCursor(2, (200-7));
@@ -292,15 +293,16 @@ void display_updateBufferForData(const char *temp_buf, const char *humidity_buf,
 #endif
 
 #ifdef GxGDE0213B1_ACTIVE
+  display.setFont(fsmall7pt);
+  display.setCursor(2, 214);
+  display.printf("[%06d]", refreshCounter);
+  display.updateWindow(0, 204, display.width(), 14);
+
   display.setTextColor(GxEPD_WHITE);
   display.fillScreen(GxEPD_BLACK);
-  display.setFont(fsmall7pt);
-  display.setCursor(2, 220);
+  display.setCursor(1, 240);
   display.print(strftime_buf);
-  display.print(" (");
-  display.print(refreshCounter);
-  display.print(")");
-  display.updateWindow(0, 200, display.width(), 34);
+  display.updateWindow(0, 222, display.width(), 28);
 #endif
 }
 
